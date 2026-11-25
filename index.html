@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Para Carla &lt;3 </title>
+
+  <style>
+    /* ==========================================================================
+       Pure Black Full-Viewport Responsive Layout (PC, Android, iPhone, iPad)
+       Zero external dependencies — works offline directly via file://
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #000000;
+      color: #f3e5c8;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .page-wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100vh;
+      height: 100svh;
+      height: 100dvh;
+      background-color: #000000;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      padding-bottom: max(1.1rem, env(safe-area-inset-bottom, 1.1rem));
+    }
+
+    /* Main ASCII Art Canvas Area */
+    #ascii-stage {
+      position: relative;
+      flex: 1 1 auto;
+      width: 100%;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      overflow: hidden;
+    }
+
+    #ascii-stage:active {
+      cursor: grabbing;
+    }
+
+    #ascii-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Simple, Clean Dedication Underneath */
+    .dedication {
+      flex: 0 0 auto;
+      width: 100%;
+      text-align: center;
+      padding: 0.25rem 1rem 0.45rem;
+      pointer-events: none;
+    }
+
+    .dedication-text {
+      font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', Palatino, 'Times New Roman', serif;
+      font-weight: 400;
+      font-size: clamp(1.65rem, 4.6vw, 2.75rem);
+      line-height: 1.15;
+      letter-spacing: 0.14em;
+      color: #f3e5c8;
+      text-shadow: 0 0 18px rgba(255, 210, 90, 0.16);
+      opacity: 0;
+      animation: fadeInText 1.4s ease-out 0.2s forwards;
+    }
+
+    @keyframes fadeInText {
+      from {
+        opacity: 0;
+        transform: translateY(5px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Compact spacing for landscape mobile viewports */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .page-wrapper {
+        padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0.45rem));
+      }
+      .dedication {
+        padding: 0.1rem 1rem 0.2rem;
+      }
+      .dedication-text {
+        font-size: clamp(1.2rem, 3.2vw, 1.75rem);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-wrapper">
+    <div id="ascii-stage" aria-label="Bouquet di girasoli con nastro rosso in ASCII art 3D">
+      <canvas id="ascii-canvas"></canvas>
+    </div>
+
+    <footer class="dedication">
+      <h1 class="dedication-text">Para Carla &lt;3</h1>
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* ========================================================================
+         1. Lightweight 3D Vector & Geometry Utilities (Zero Dependencies)
+         ======================================================================== */
+      function v3(x, y, z) { return [x, y, z]; }
+      function vAdd(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+      function vSub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+      function vScale(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+      function vDot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+      function vCross(a, b) {
+        return [
+          a[1] * b[2] - a[2] * b[1],
+          a[2] * b[0] - a[0] * b[2],
+          a[0] * b[1] - a[1] * b[0]
+        ];
+      }
+      function vLen(a) { return Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) || 1e-8; }
+      function vNorm(a) { const l = vLen(a); return [a[0] / l, a[1] / l, a[2] / l]; }
+
+      function catmullRom(p0, p1, p2, p3, t) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        return [
+          0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
+          0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3),
+          0.5 * ((2 * p1[2]) + (-p0[2] + p2[2]) * t + (2 * p0[2] - 5 * p1[2] + 4 * p2[2] - p3[2]) * t2 + (-p0[2] + 3 * p1[2] - 3 * p2[2] + p3[2]) * t3)
+        ];
+      }
+
+      function sampleSpline(pts, steps) {
+        const out = [];
+        const n = pts.length;
+        for (let i = 0; i <= steps; i++) {
+          const u = (i / steps) * (n - 1);
+          const seg = Math.min(Math.floor(u), n - 2);
+          const localT = u - seg;
+          const p0 = pts[Math.max(0, seg - 1)];
+          const p1 = pts[seg];
+          const p2 = pts[seg + 1];
+          const p3 = pts[Math.min(n - 1, seg + 2)];
+          out.push(catmullRom(p0, p1, p2, p3, localT));
+        }
+        return out;
+      }
+
+      /* ========================================================================
+         2. Material IDs & Precomputed High-Contrast Color Palettes
+         ======================================================================== */
+      const MAT_DISC   = 0; // Dark brown Fibonacci center with golden-amber pollen halo
+      const MAT_PETAL  = 1; // Lush multi-ring golden-yellow to amber-gold petals
+      const MAT_CALYX  = 2; // Green convex calyx/receptacle, sepals & stems
+      const MAT_LEAF   = 3; // Lush green heart-shaped leaves
+      const MAT_RIBBON = 4; // Rich crimson/ruby red satin ribbon & sculpted 3D bow
+
+      // Dense, expressive ASCII luminance ramp ordered from darkest to brightest
+      const ASCII_RAMP = " .'`^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
+      const RAMP_LEN = ASCII_RAMP.length;
+
+      // Stippled seed-pattern ASCII characters for the Fibonacci sunflower disc
+      const DISC_RAMP = ".,:;o+*#%@&";
+
+      // Precomputed color lookup tables (zero string allocations during render loop)
+      const PALETTES = [
+        // 0: MAT_DISC (deep espresso brown #2D1608 -> #5C3014 -> golden-amber pollen halo)
+        ['#2D1608', '#381B0A', '#44220D', '#522A11', '#5C3014', '#784015', '#9E5814', '#C97A18', '#E69F22', '#F5BD38'],
+        // 1: MAT_PETAL (deep amber-gold base/under-layer -> bright sunny yellow tips #FFE838)
+        ['#944800', '#A85500', '#C26B00', '#D98200', '#EB9C00', '#F7B400', '#FFD000', '#FFDC1E', '#FFE838', '#FFF26B'],
+        // 2: MAT_CALYX (botanical green calyx, sepals & stems)
+        ['#133614', '#1B4D1B', '#236324', '#2E7D32', '#388E3C', '#43A047', '#4EB052', '#5EC062'],
+        // 3: MAT_LEAF (broad heart-shaped sunflower leaves)
+        ['#143B17', '#1E5622', '#266B2A', '#2E7D32', '#3B9440', '#4CAF50', '#5BB860', '#66BB6A', '#7CC97F'],
+        // 4: MAT_RIBBON (deep crimson shadow #5E040C -> ruby midtone #D91424 -> highlight #FF7A86)
+        ['#5E040C', '#7A0610', '#990A16', '#B80F1D', '#D91424', '#EB2132', '#F73B4B', '#FF5C6A', '#FF7A86']
+      ];
+
+      // Flatten all palettes into one indexed CSS color array for ultra-fast lookup
+      const FLAT_COLORS = [];
+      const PAL_OFFSETS = [];
+      const PAL_SIZES = [];
+      for (let m = 0; m < PALETTES.length; m++) {
+        PAL_OFFSETS[m] = FLAT_COLORS.length;
+        PAL_SIZES[m] = PALETTES[m].length;
+        for (let c = 0; c < PALETTES[m].length; c++) {
+          FLAT_COLORS.push(PALETTES[m][c]);
+        }
+      }
+
+      /* ========================================================================
+         3. Procedural 3D Bouquet Geometry Builder
+         ======================================================================== */
+      const vertices = [];
+      const triangles = [];
+
+      function addVert(p) {
+        vertices.push(p[0], p[1], p[2]);
+        return (vertices.length / 3) - 1;
+      }
+
+      function addTri(i0, i1, i2, mat, u0, v0, u1, v1, u2, v2, shadeBias) {
+        const ax = vertices[i0 * 3], ay = vertices[i0 * 3 + 1], az = vertices[i0 * 3 + 2];
+        const bx = vertices[i1 * 3], by = vertices[i1 * 3 + 1], bz = vertices[i1 * 3 + 2];
+        const cx = vertices[i2 * 3], cy = vertices[i2 * 3 + 1], cz = vertices[i2 * 3 + 2];
+
+        const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+        const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+        let nx = e1y * e2z - e1z * e2y;
+        let ny = e1z * e2x - e1x * e2z;
+        let nz = e1x * e2y - e1y * e2x;
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1e-8;
+        nx /= len; ny /= len; nz /= len;
+
+        triangles.push({
+          i0, i1, i2, mat,
+          u0: u0 || 0, v0: v0 || 0,
+          u1: u1 || 0, v1: v1 || 0,
+          u2: u2 || 0, v2: v2 || 0,
+          shadeBias: shadeBias !== undefined ? shadeBias : 1.0,
+          nx, ny, nz
+        });
+      }
+
+      /**
+       * Creates a local orthonormal basis for placing a sunflower head at `pos`
+       * facing toward `lookTarget`.
+       */
+      function makeBasis(pos, lookTarget) {
+        const fwd = vNorm(vSub(lookTarget, pos));
+        const worldUp = Math.abs(fwd[1]) > 0.94 ? [0, 0, 1] : [0, 1, 0];
+        const right = vNorm(vCross(worldUp, fwd));
+        const up = vNorm(vCross(fwd, right));
+        return { pos, right, up, fwd };
+      }
+
+      function toWorld(basis, lx, ly, lz, scale) {
+        const s = scale || 1.0;
+        return [
+          basis.pos[0] + (basis.right[0] * lx + basis.up[0] * ly + basis.fwd[0] * lz) * s,
+          basis.pos[1] + (basis.right[1] * lx + basis.up[1] * ly + basis.fwd[1] * lz) * s,
+          basis.pos[2] + (basis.right[2] * lx + basis.up[2] * ly + basis.fwd[2] * lz) * s
+        ];
+      }
+
+      /**
+       * Builds one lush, unmistakable 3D sunflower head:
+       * - Domed circular dark-brown seed disc with Fibonacci stippling & golden pollen halo
+       * - 48 densely packed pointed golden-yellow petals in 3 staggered, overlapping rings
+       *   (14 inner forward-cupped + 16 middle full + 18 outer back-swept petals)
+       * - Convex green calyx/receptacle + 14 pointed green sepals on the back
+       */
+      function buildSunflowerHead(pos, lookTarget, scale, phaseOffset) {
+        const basis = makeBasis(pos, lookTarget);
+        const discR = 0.56;
+        const domeH = 0.21;
+
+        // 1. Front Circular Seed Disc (2 concentric dome rings for smooth curvature)
+        const discSegs = 22;
+        const centerIdx = addVert(toWorld(basis, 0, 0, domeH, scale));
+        const midRing = [];
+        const rimRing = [];
+
+        for (let i = 0; i < discSegs; i++) {
+          const a = (i / discSegs) * Math.PI * 2;
+          const ca = Math.cos(a), sa = Math.sin(a);
+          midRing.push(addVert(toWorld(basis, ca * discR * 0.58, sa * discR * 0.58, domeH * 0.74, scale)));
+          rimRing.push(addVert(toWorld(basis, ca * discR, sa * discR, 0.03, scale)));
+        }
+
+        for (let i = 0; i < discSegs; i++) {
+          const next = (i + 1) % discSegs;
+          const a0 = (i / discSegs) * Math.PI * 2;
+          const a1 = ((i + 1) / discSegs) * Math.PI * 2;
+          const uMid0 = Math.cos(a0) * 0.58, vMid0 = Math.sin(a0) * 0.58;
+          const uMid1 = Math.cos(a1) * 0.58, vMid1 = Math.sin(a1) * 0.58;
+          const uRim0 = Math.cos(a0), vRim0 = Math.sin(a0);
+          const uRim1 = Math.cos(a1), vRim1 = Math.sin(a1);
+
+          addTri(centerIdx, midRing[i], midRing[next], MAT_DISC, 0, 0, uMid0, vMid0, uMid1, vMid1);
+          addTri(midRing[i], rimRing[i], rimRing[next], MAT_DISC, uMid0, vMid0, uRim0, vRim0, uRim1, vRim1);
+          addTri(midRing[i], rimRing[next], midRing[next], MAT_DISC, uMid0, vMid0, uRim1, vRim1, uMid1, vMid1);
+        }
+
+        // 2. Lush Golden-Yellow Crown: 48 Pointed Petals in 3 Staggered, Overlapping Rings
+        const petalLayers = [
+          {
+            // Inner ring: 14 slightly forward-cupped shorter petals hugging the pollen halo
+            count: 14, len: 0.66, width: 0.25, rStart: 0.84,
+            zBase: 0.06, zMid: 0.14, zTip: 0.05,
+            phase: phaseOffset, shadeBias: 0.96
+          },
+          {
+            // Middle ring: 16 full, vibrant pointed petals forming the main sunlit crown
+            count: 16, len: 0.88, width: 0.28, rStart: 0.83,
+            zBase: 0.01, zMid: 0.03, zTip: -0.09,
+            phase: phaseOffset + Math.PI / 16, shadeBias: 1.04
+          },
+          {
+            // Outer ring: 18 slightly reflexed/back-swept petals adding rich layered volume
+            count: 18, len: 1.00, width: 0.30, rStart: 0.82,
+            zBase: -0.05, zMid: -0.11, zTip: -0.28,
+            phase: phaseOffset + Math.PI / 9, shadeBias: 0.84
+          }
+        ];
+
+        petalLayers.forEach((layer, lIdx) => {
+          for (let i = 0; i < layer.count; i++) {
+            const jitter = Math.sin(i * 4.7 + lIdx * 2.3 + phaseOffset) * 0.032;
+            const angle = (i / layer.count) * Math.PI * 2 + layer.phase + jitter;
+            const ca = Math.cos(angle), sa = Math.sin(angle);
+            const tx = -sa, ty = ca;
+
+            const rBase = discR * layer.rStart;
+            const rMid  = rBase + layer.len * 0.45;
+            const rTip  = rBase + layer.len * (0.95 + Math.abs(jitter) * 1.6);
+            const hw    = layer.width * 0.5;
+            const zJit  = Math.cos(i * 3.1 + lIdx * 1.7) * 0.025;
+
+            const pBase  = addVert(toWorld(basis, ca * rBase, sa * rBase, layer.zBase, scale));
+            const pLeft  = addVert(toWorld(basis, ca * rMid - tx * hw, sa * rMid - ty * hw, layer.zMid - 0.038 + zJit, scale));
+            const pSpine = addVert(toWorld(basis, ca * rMid, sa * rMid, layer.zMid + 0.048 + zJit, scale));
+            const pRight = addVert(toWorld(basis, ca * rMid + tx * hw, sa * rMid + ty * hw, layer.zMid - 0.038 + zJit, scale));
+            const pTip   = addVert(toWorld(basis, ca * rTip, sa * rTip, layer.zTip + zJit, scale));
+
+            addTri(pBase, pLeft, pSpine, MAT_PETAL, 0.0, 0.15, 0.46, 0.95, 0.46, 0.0, layer.shadeBias);
+            addTri(pBase, pSpine, pRight, MAT_PETAL, 0.0, 0.15, 0.46, 0.0, 0.46, 0.95, layer.shadeBias);
+            addTri(pSpine, pLeft, pTip, MAT_PETAL, 0.46, 0.0, 0.46, 0.95, 1.0, 0.12, layer.shadeBias);
+            addTri(pSpine, pTip, pRight, MAT_PETAL, 0.46, 0.0, 1.0, 0.12, 0.46, 0.95, layer.shadeBias);
+          }
+        });
+
+        // 3. Back Green Convex Calyx / Receptacle Dome + 14 Pointed Sepals
+        const backCenterIdx = addVert(toWorld(basis, 0, 0, -0.36, scale));
+        const backMidRing = [];
+        for (let i = 0; i < discSegs; i++) {
+          const a = (i / discSegs) * Math.PI * 2;
+          backMidRing.push(addVert(toWorld(basis, Math.cos(a) * discR * 0.74, Math.sin(a) * discR * 0.74, -0.24, scale)));
+        }
+
+        for (let i = 0; i < discSegs; i++) {
+          const next = (i + 1) % discSegs;
+          addTri(backCenterIdx, backMidRing[next], backMidRing[i], MAT_CALYX, 0, 0, 0.5, 0, 0.5, 0);
+          addTri(backMidRing[i], backMidRing[next], rimRing[next], MAT_CALYX, 0.5, 0, 0.5, 0, 1, 0);
+          addTri(backMidRing[i], rimRing[next], rimRing[i], MAT_CALYX, 0.5, 0, 1, 0, 1, 0);
+        }
+
+        // Pointed green sepals hugging the back of the outer petal ring
+        const sepalCount = 14;
+        for (let i = 0; i < sepalCount; i++) {
+          const a = (i / sepalCount) * Math.PI * 2 + phaseOffset * 0.5;
+          const ca = Math.cos(a), sa = Math.sin(a);
+          const tx = -sa, ty = ca;
+          const r0 = discR * 0.68;
+          const r1 = discR * 1.44;
+          const hw = 0.14;
+
+          const sL = addVert(toWorld(basis, ca * r0 - tx * hw, sa * r0 - ty * hw, -0.20, scale));
+          const sR = addVert(toWorld(basis, ca * r0 + tx * hw, sa * r0 + ty * hw, -0.20, scale));
+          const sTip = addVert(toWorld(basis, ca * r1, sa * r1, -0.15, scale));
+          addTri(sL, sTip, sR, MAT_CALYX, 0.3, 0, 1.0, 0, 0.3, 0);
+        }
+
+        // Return exact back receptacle anchor point for seamless stem attachment
+        return toWorld(basis, 0, 0, -0.34, scale);
+      }
+
+      /**
+       * Builds a curved 3D cylindrical stem along a sampled spline.
+       */
+      function buildStemTube(pts, radius, sides) {
+        const rings = [];
+        for (let i = 0; i < pts.length; i++) {
+          const p = pts[i];
+          const prev = pts[Math.max(0, i - 1)];
+          const next = pts[Math.min(pts.length - 1, i + 1)];
+          const tangent = vNorm(vSub(next, prev));
+          const ref = Math.abs(tangent[0]) < 0.85 ? [1, 0, 0] : [0, 0, 1];
+          const norm = vNorm(vCross(tangent, ref));
+          const binorm = vNorm(vCross(tangent, norm));
+
+          const ring = [];
+          const r = radius * (1.0 - (i / pts.length) * 0.12);
+          for (let s = 0; s < sides; s++) {
+            const a = (s / sides) * Math.PI * 2;
+            const ca = Math.cos(a), sa = Math.sin(a);
+            const vp = [
+              p[0] + (norm[0] * ca + binorm[0] * sa) * r,
+              p[1] + (norm[1] * ca + binorm[1] * sa) * r,
+              p[2] + (norm[2] * ca + binorm[2] * sa) * r
+            ];
+            ring.push(addVert(vp));
+          }
+          rings.push(ring);
+        }
+
+        for (let i = 0; i < rings.length - 1; i++) {
+          const r0 = rings[i];
+          const r1 = rings[i + 1];
+          for (let s = 0; s < sides; s++) {
+            const sn = (s + 1) % sides;
+            addTri(r0[s], r0[sn], r1[sn], MAT_CALYX, 0, 0, 0, 0, 0, 0);
+            addTri(r0[s], r1[sn], r1[s], MAT_CALYX, 0, 0, 0, 0, 0, 0);
+          }
+        }
+      }
+
+      /**
+       * Builds a broad, heart-shaped sunflower leaf with a natural arch and central crease.
+       */
+      function buildSunflowerLeaf(anchor, azimuth, tiltUp, length, width) {
+        const dirX = Math.cos(azimuth);
+        const dirZ = Math.sin(azimuth);
+        const sideX = -dirZ;
+        const sideZ = dirX;
+
+        const slices = 6;
+        const spine = [];
+        const leftEdge = [];
+        const rightEdge = [];
+
+        for (let i = 0; i <= slices; i++) {
+          const t = i / slices;
+          // Heart-shaped width profile: swells early, tapers to a point
+          const wProfile = Math.sin(Math.pow(t, 0.72) * Math.PI) * (1.0 - 0.12 * t);
+          const halfW = width * 0.5 * wProfile;
+          const dist = t * length;
+          // Graceful upward then drooping arch
+          const archY = Math.sin(t * Math.PI * 0.82) * tiltUp - t * t * 0.42;
+
+          const cx = anchor[0] + dirX * dist;
+          const cy = anchor[1] + archY;
+          const cz = anchor[2] + dirZ * dist;
+
+          const foldY = halfW * 0.18;
+          spine.push(addVert([cx, cy - foldY * 0.35, cz]));
+          leftEdge.push(addVert([cx - sideX * halfW, cy + foldY, cz - sideZ * halfW]));
+          rightEdge.push(addVert([cx + sideX * halfW, cy + foldY, cz + sideZ * halfW]));
+        }
+
+        for (let i = 0; i < slices; i++) {
+          const u0 = i / slices;
+          const u1 = (i + 1) / slices;
+          addTri(spine[i], leftEdge[i], leftEdge[i + 1], MAT_LEAF, u0, 0.0, u0, 1.0, u1, 1.0);
+          addTri(spine[i], leftEdge[i + 1], spine[i + 1], MAT_LEAF, u0, 0.0, u1, 1.0, u1, 0.0);
+          addTri(spine[i], rightEdge[i + 1], rightEdge[i], MAT_LEAF, u0, 0.0, u1, 1.0, u0, 1.0);
+          addTri(spine[i], spine[i + 1], rightEdge[i + 1], MAT_LEAF, u0, 0.0, u1, 0.0, u1, 1.0);
+        }
+      }
+
+      /**
+       * Helper to extrude a flat 3D satin ribbon strip along a path of points.
+       */
+      function buildRibbonStrip(pts, widthFn, sideDirFn, mat) {
+        const leftPts = [];
+        const rightPts = [];
+        for (let i = 0; i < pts.length; i++) {
+          const t = i / (pts.length - 1);
+          const p = pts[i];
+          const hw = widthFn(t) * 0.5;
+          const s = vNorm(sideDirFn(i, t));
+          leftPts.push(addVert([p[0] - s[0] * hw, p[1] - s[1] * hw, p[2] - s[2] * hw]));
+          rightPts.push(addVert([p[0] + s[0] * hw, p[1] + s[1] * hw, p[2] + s[2] * hw]));
+        }
+        for (let i = 0; i < pts.length - 1; i++) {
+          addTri(leftPts[i], rightPts[i], rightPts[i + 1], mat, 0, 0, 1, 0, 1, 1);
+          addTri(leftPts[i], rightPts[i + 1], leftPts[i + 1], mat, 0, 0, 1, 1, 0, 1);
+        }
+      }
+
+      /**
+       * Builds the vibrant crimson/ruby red satin ribbon wrapping the stems:
+       * - Sculpted waist wrap band
+       * - Puffy central knot in front
+       * - Two voluptuous 3D bow loops (left & right)
+       * - Two flowing ribbon tails with V-cut notches at the ends
+       */
+      function buildRedRibbon(waistY) {
+        // 1. Satin Wrap Band around the bundled stems
+        const bandSegs = 28;
+        const bandRows = 5;
+        const bandH = 0.64;
+        const bandR = 0.44;
+        const bandGrid = [];
+
+        for (let r = 0; r <= bandRows; r++) {
+          const v = r / bandRows;
+          const y = waistY + (v - 0.5) * bandH;
+          const bulge = 1.0 + Math.sin(v * Math.PI) * 0.10;
+          const row = [];
+          for (let s = 0; s < bandSegs; s++) {
+            const a = (s / bandSegs) * Math.PI * 2;
+            const rad = bandR * bulge;
+            row.push(addVert([Math.cos(a) * rad, y, Math.sin(a) * rad]));
+          }
+          bandGrid.push(row);
+        }
+
+        for (let r = 0; r < bandRows; r++) {
+          for (let s = 0; s < bandSegs; s++) {
+            const sn = (s + 1) % bandSegs;
+            addTri(bandGrid[r][s], bandGrid[r][sn], bandGrid[r + 1][sn], MAT_RIBBON, 0, 0, 0, 0, 0, 0);
+            addTri(bandGrid[r][s], bandGrid[r + 1][sn], bandGrid[r + 1][s], MAT_RIBBON, 0, 0, 0, 0, 0, 0);
+          }
+        }
+
+        // 2. Central Sculpted Knot (front +Z side)
+        const knotZ = bandR + 0.14;
+        const kLat = 8;
+        const kLon = 10;
+        const knotRings = [];
+        for (let i = 0; i <= kLat; i++) {
+          const phi = (i / kLat) * Math.PI;
+          const sp = Math.sin(phi), cp = Math.cos(phi);
+          const ring = [];
+          for (let j = 0; j < kLon; j++) {
+            const theta = (j / kLon) * Math.PI * 2;
+            const x = Math.cos(theta) * sp * 0.24;
+            const y = waistY + cp * 0.25;
+            const z = knotZ + Math.sin(theta) * sp * 0.20;
+            ring.push(addVert([x, y, z]));
+          }
+          knotRings.push(ring);
+        }
+        for (let i = 0; i < kLat; i++) {
+          for (let j = 0; j < kLon; j++) {
+            const jn = (j + 1) % kLon;
+            addTri(knotRings[i][j], knotRings[i + 1][j], knotRings[i + 1][jn], MAT_RIBBON, 0, 0, 0, 0, 0, 0);
+            addTri(knotRings[i][j], knotRings[i + 1][jn], knotRings[i][jn], MAT_RIBBON, 0, 0, 0, 0, 0, 0);
+          }
+        }
+
+        // 3. Left & Right Sculpted 3D Bow Loops
+        [-1, 1].forEach((side) => {
+          const loopSteps = 22;
+          const loopPts = [];
+          for (let i = 0; i <= loopSteps; i++) {
+            const t = i / loopSteps;
+            const a = t * Math.PI * 2;
+            // Teardrop bow loop curve projecting outward & slightly forward
+            const lx = side * (0.14 + Math.sin(t * Math.PI) * 1.02);
+            const ly = waistY + Math.sin(a) * 0.42 + Math.sin(t * Math.PI) * 0.12;
+            const lz = knotZ + 0.04 + Math.sin(t * Math.PI) * 0.34 - Math.cos(a) * 0.10;
+            loopPts.push([lx, ly, lz]);
+          }
+          buildRibbonStrip(
+            loopPts,
+            (t) => 0.18 + Math.sin(t * Math.PI) * 0.24,
+            (i, t) => [0.0, Math.cos(t * Math.PI * 2) * 0.32 + 0.85, 0.35],
+            MAT_RIBBON
+          );
+        });
+
+        // 4. Two Flowing Ribbon Tails with V-Cut Notches
+        [-1, 1].forEach((side) => {
+          const tailCtrl = [
+            [side * 0.12, waistY - 0.06, knotZ + 0.06],
+            [side * 0.56, waistY - 0.65, knotZ + 0.34],
+            [side * 0.78, waistY - 1.38, knotZ + 0.18],
+            [side * 1.02, waistY - 2.08, knotZ + 0.38]
+          ];
+          const tailPts = sampleSpline(tailCtrl, 14);
+          const leftIdx = [];
+          const midIdx = [];
+          const rightIdx = [];
+
+          for (let i = 0; i < tailPts.length; i++) {
+            const t = i / (tailPts.length - 1);
+            const p = tailPts[i];
+            const hw = 0.13 + t * 0.12;
+            const twist = Math.sin(t * Math.PI * 1.5) * 0.28 * side;
+            const sx = Math.cos(twist);
+            const sz = Math.sin(twist);
+
+            // V-notch at the very bottom tip
+            const notchLift = (i === tailPts.length - 1) ? 0.24 : 0.0;
+            leftIdx.push(addVert([p[0] - sx * hw, p[1], p[2] - sz * hw]));
+            midIdx.push(addVert([p[0], p[1] + notchLift, p[2] + 0.03]));
+            rightIdx.push(addVert([p[0] + sx * hw, p[1], p[2] + sz * hw]));
+          }
+
+          for (let i = 0; i < tailPts.length - 1; i++) {
+            addTri(leftIdx[i], midIdx[i], midIdx[i + 1], MAT_RIBBON, 0, 0, 0.5, 0, 0.5, 1);
+            addTri(leftIdx[i], midIdx[i + 1], leftIdx[i + 1], MAT_RIBBON, 0, 0, 0.5, 1, 0, 1);
+            addTri(midIdx[i], rightIdx[i], rightIdx[i + 1], MAT_RIBBON, 0.5, 0, 1, 0, 1, 1);
+            addTri(midIdx[i], rightIdx[i + 1], midIdx[i + 1], MAT_RIBBON, 0.5, 0, 1, 1, 0.5, 1);
+          }
+        });
+      }
+
+      /**
+       * Assembles the complete 3D Sunflower Bouquet (7 lush, full-petaled blooms,
+       * curved stems bundled at the waist, framing heart-shaped leaves & red satin ribbon).
+       */
+      function buildBouquetGeometry() {
+        const waistY = -1.00;
+        const bottomY = -2.95;
+
+        // 7 distinct, well-separated sunflowers at varied heights & outward-facing tilts
+        const blooms = [
+          // Prominent crown bloom at center-top
+          { pos: [ 0.00,  2.42,  0.10], look: [ 0.00,  3.65,  1.65], scale: 1.02, splay: 0.08 },
+          // 6 outer blooms arranged in a balanced, staggered 360-degree ring
+          { pos: [ 1.66,  1.18,  0.98], look: [ 3.75,  1.78,  2.35], scale: 0.94, splay: 0.52 },
+          { pos: [ 0.02,  0.96,  1.92], look: [ 0.04,  1.35,  4.25], scale: 0.96, splay: 0.48 },
+          { pos: [-1.68,  1.22,  0.94], look: [-3.80,  1.85,  2.20], scale: 0.94, splay: 0.52 },
+          { pos: [-1.62,  1.34, -1.02], look: [-3.70,  1.98, -2.40], scale: 0.93, splay: 0.50 },
+          { pos: [ 0.00,  1.06, -1.90], look: [ 0.00,  1.52, -4.20], scale: 0.95, splay: 0.48 },
+          { pos: [ 1.62,  1.30, -1.00], look: [ 3.70,  1.92, -2.35], scale: 0.93, splay: 0.50 }
+        ];
+
+        blooms.forEach((b, idx) => {
+          const stemTop = buildSunflowerHead(b.pos, b.look, b.scale, idx * 1.17);
+
+          // Converge stem tightly at ribbon waist, then flare gently below
+          const rLen = Math.hypot(b.pos[0], b.pos[2]) || 1;
+          const rx = b.pos[0] / rLen;
+          const rz = b.pos[2] / rLen;
+
+          const waistPt = [rx * 0.16, waistY, rz * 0.16];
+          const splayAng = Math.atan2(rz, rx) + Math.PI * 0.88;
+          const bottomPt = [
+            Math.cos(splayAng) * b.splay,
+            bottomY - (idx % 3) * 0.11,
+            Math.sin(splayAng) * b.splay
+          ];
+          const midPt = [
+            (stemTop[0] + waistPt[0]) * 0.52,
+            (stemTop[1] + waistPt[1]) * 0.46,
+            (stemTop[2] + waistPt[2]) * 0.52
+          ];
+
+          const stemPts = sampleSpline([stemTop, midPt, waistPt, bottomPt], 12);
+          buildStemTube(stemPts, 0.085, 6);
+        });
+
+        // 7 broad heart-shaped sunflower leaves framing the lower bouquet
+        const leafCount = 7;
+        for (let i = 0; i < leafCount; i++) {
+          const az = (i / leafCount) * Math.PI * 2 + 0.42;
+          const anchor = [
+            Math.cos(az) * 0.36,
+            waistY + 0.82 + (i % 2) * 0.22,
+            Math.sin(az) * 0.36
+          ];
+          buildSunflowerLeaf(anchor, az, 0.36 + (i % 2) * 0.14, 1.46, 1.18);
+        }
+
+        // Vibrant red satin ribbon wrap + sculpted 3D bow + flowing V-cut tails
+        buildRedRibbon(waistY);
+
+        // Shift entire bouquet vertically so it centers cleanly in the viewport
+        for (let i = 1; i < vertices.length; i += 3) {
+          vertices[i] += 0.22;
+        }
+      }
+
+      /* ========================================================================
+         4. Real-Time 3D Z-Buffer ASCII Art Renderer (HiDPI HTML5 Canvas)
+         ======================================================================== */
+      const stageEl = document.getElementById('ascii-stage');
+      const canvas = document.getElementById('ascii-canvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      let cols = 100;
+      let rows = 55;
+      let charW = 8;
+      let charH = 12;
+      let fontSize = 11;
+      let offsetX = 0;
+      let offsetY = 0;
+      let stageW = 800;
+      let stageH = 600;
+
+      // Pre-allocated rasterization buffers
+      let zBuf = new Float32Array(1);
+      let charBuf = new Uint8Array(1);
+      let colorBuf = new Uint16Array(1);
+
+      // Transformed vertex cache
+      let projX = new Float32Array(1);
+      let projY = new Float32Array(1);
+      let projZ = new Float32Array(1);
+
+      // Interactive rotation state (mouse & touch friendly)
+      let rotY = 0.0;
+      let rotX = 0.16;
+      let velY = 0.0;
+      let isDragging = false;
+      let lastPtrX = 0;
+      let lastPtrY = 0;
+      let lastTime = 0;
+
+      // Normalized lighting directions (Key + Fill + Rim)
+      const KEY_LIGHT  = vNorm([ 0.55,  0.72,  0.85]);
+      const FILL_LIGHT = vNorm([-0.68,  0.22,  0.48]);
+      const RIM_LIGHT  = vNorm([ 0.00,  0.50, -0.88]);
+
+      function resizeCanvas() {
+        const rect = stageEl.getBoundingClientRect();
+        stageW = Math.max(240, rect.width);
+        stageH = Math.max(240, rect.height);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        canvas.width = Math.floor(stageW * dpr);
+        canvas.height = Math.floor(stageH * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Adaptive font size for crisp ASCII art across phones, tablets, iPads & desktop
+        const minDim = Math.min(stageW, stageH);
+        fontSize = Math.max(7, Math.min(13, Math.round(minDim / 56)));
+        ctx.font = '700 ' + fontSize + 'px "Courier New", Courier, Menlo, Monaco, Consolas, monospace';
+        ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+
+        const measured = ctx.measureText('M').width;
+        charW = Math.max(4.5, measured || fontSize * 0.61);
+        charH = Math.max(7.5, fontSize * 1.06);
+
+        cols = Math.max(36, Math.floor(stageW / charW));
+        rows = Math.max(24, Math.floor(stageH / charH));
+
+        offsetX = (stageW - cols * charW) * 0.5;
+        offsetY = (stageH - rows * charH) * 0.5;
+
+        const cellCount = cols * rows;
+        zBuf = new Float32Array(cellCount);
+        charBuf = new Uint8Array(cellCount);
+        colorBuf = new Uint16Array(cellCount);
+      }
+
+      function renderFrame(now) {
+        requestAnimationFrame(renderFrame);
+
+        const dt = lastTime ? Math.min(0.05, (now - lastTime) * 0.001) : 0.016;
+        lastTime = now;
+
+        // Smooth continuous rotation + inertial damping after drag
+        if (!isDragging) {
+          rotY += (0.52 + velY) * dt;
+          velY *= Math.pow(0.08, dt);
+        }
+
+        // Subtle organic vertical tilt sway
+        const swayX = rotX + Math.sin(now * 0.0007) * 0.04;
+
+        const cy = Math.cos(rotY), sy = Math.sin(rotY);
+        const cx = Math.cos(swayX), sx = Math.sin(swayX);
+
+        // Perspective projection parameters compensating for charW / charH aspect ratio
+        const camDist = 10.8;
+        const bouquetHalfH = 3.55;
+        const bouquetHalfW = 3.25;
+
+        const gridPixelW = cols * charW;
+        const gridPixelH = rows * charH;
+
+        // Choose focal scale so the entire bouquet fits cleanly with margin on all devices
+        const maxScaleY = (gridPixelH * 0.455 * (camDist - 1.6)) / bouquetHalfH;
+        const maxScaleX = (gridPixelW * 0.455 * (camDist - 1.6)) / bouquetHalfW;
+        const focalPx = Math.min(maxScaleX, maxScaleY);
+
+        const focalCol = focalPx / charW;
+        const focalRow = focalPx / charH;
+        const halfCols = cols * 0.5;
+        const halfRows = rows * 0.5;
+
+        // Clear Z-buffer & character buffer
+        zBuf.fill(-1e9);
+        charBuf.fill(0);
+
+        // 1. Transform & project all vertices once per frame
+        const vCount = vertices.length / 3;
+        for (let i = 0; i < vCount; i++) {
+          const vx = vertices[i * 3];
+          const vy = vertices[i * 3 + 1];
+          const vz = vertices[i * 3 + 2];
+
+          // Rotate around Y
+          const rx = vx * cy + vz * sy;
+          const rz1 = -vx * sy + vz * cy;
+          // Rotate around X
+          const ry = vy * cx - rz1 * sx;
+          const rz = vy * sx + rz1 * cx;
+
+          const invDepth = 1.0 / (camDist - rz);
+          projX[i] = halfCols + rx * focalCol * invDepth;
+          projY[i] = halfRows - ry * focalRow * invDepth;
+          projZ[i] = rz;
+        }
+
+        // 2. Rasterize all triangles into the ASCII Z-buffer
+        const tCount = triangles.length;
+        for (let t = 0; t < tCount; t++) {
+          const tri = triangles[t];
+          const i0 = tri.i0, i1 = tri.i1, i2 = tri.i2;
+
+          const x0 = projX[i0], y0 = projY[i0], z0 = projZ[i0];
+          const x1 = projX[i1], y1 = projY[i1], z1 = projZ[i1];
+          const x2 = projX[i2], y2 = projY[i2], z2 = projZ[i2];
+
+          const area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+          if (Math.abs(area) < 0.02) continue;
+
+          const minX = Math.max(0, Math.floor(Math.min(x0, x1, x2)));
+          const maxX = Math.min(cols - 1, Math.ceil(Math.max(x0, x1, x2)));
+          const minY = Math.max(0, Math.floor(Math.min(y0, y1, y2)));
+          const maxY = Math.min(rows - 1, Math.ceil(Math.max(y0, y1, y2)));
+          if (minX > maxX || minY > maxY) continue;
+
+          // Rotate face normal into camera space
+          const rnx = tri.nx * cy + tri.nz * sy;
+          const rnz1 = -tri.nx * sy + tri.nz * cy;
+          let rny = tri.ny * cx - rnz1 * sx;
+          let rnz = tri.ny * sx + rnz1 * cx;
+          let fnx = rnx;
+
+          // Flip normal for double-sided lighting (petals, leaves, ribbon, sepals)
+          if (rnz < 0) {
+            fnx = -fnx;
+            rny = -rny;
+            rnz = -rnz;
+          }
+
+          const diffKey  = Math.max(0, fnx * KEY_LIGHT[0] + rny * KEY_LIGHT[1] + rnz * KEY_LIGHT[2]);
+          const diffFill = Math.max(0, fnx * FILL_LIGHT[0] + rny * FILL_LIGHT[1] + rnz * FILL_LIGHT[2]);
+          const diffRim  = Math.max(0, fnx * RIM_LIGHT[0] + rny * RIM_LIGHT[1] + rnz * RIM_LIGHT[2]);
+
+          const mat = tri.mat;
+          let baseLum = 0.22 + diffKey * 0.64 + diffFill * 0.22 + diffRim * 0.14;
+
+          // Extra satin specular highlight on the red ribbon & bow
+          if (mat === MAT_RIBBON) {
+            const spec = Math.pow(Math.max(0, rnz * 0.72 + diffKey * 0.45), 5) * 0.46;
+            baseLum = 0.18 + diffKey * 0.58 + diffFill * 0.20 + spec;
+          }
+
+          const invArea = 1.0 / area;
+          const palOffset = PAL_OFFSETS[mat];
+          const palSize = PAL_SIZES[mat];
+
+          for (let py = minY; py <= maxY; py++) {
+            const cyP = py + 0.5;
+            const rowOffset = py * cols;
+
+            for (let px = minX; px <= maxX; px++) {
+              const cxP = px + 0.5;
+
+              const w0 = ((x1 - cxP) * (y2 - cyP) - (y1 - cyP) * (x2 - cxP)) * invArea;
+              if (w0 < -0.001) continue;
+              const w1 = ((x2 - cxP) * (y0 - cyP) - (y2 - cyP) * (x0 - cxP)) * invArea;
+              if (w1 < -0.001) continue;
+              const w2 = 1.0 - w0 - w1;
+              if (w2 < -0.001) continue;
+
+              const z = w0 * z0 + w1 * z1 + w2 * z2;
+              const idx = rowOffset + px;
+              if (z <= zBuf[idx]) continue;
+
+              zBuf[idx] = z;
+
+              // Subtle depth shading so nearer petals & blooms pop sharply forward
+              const depthShade = Math.max(0.76, Math.min(1.12, 0.94 + z * 0.065));
+
+              let lum = baseLum * depthShade;
+              let chCode = 0;
+
+              if (mat === MAT_DISC) {
+                // Procedural Fibonacci spiral & stippled seed texture with golden-amber pollen halo
+                const u = w0 * tri.u0 + w1 * tri.u1 + w2 * tri.u2;
+                const v = w0 * tri.v0 + w1 * tri.v1 + w2 * tri.v2;
+                const r = Math.min(1.0, Math.sqrt(u * u + v * v));
+                const ang = Math.atan2(v, u);
+
+                const spiral = Math.sin(r * 26.0 - ang * 13.0) * Math.sin(r * 26.0 + ang * 8.0);
+                // Dark espresso brown center -> golden-amber pollen halo at outer edge (r > 0.70)
+                const radialTone = r < 0.70 ? (0.12 + r * 0.36) : (0.48 + (r - 0.70) * 1.65);
+                lum = Math.max(0.06, Math.min(0.99, (radialTone * (0.64 + diffKey * 0.52) + spiral * 0.15) * depthShade));
+
+                const dIdx = Math.min(DISC_RAMP.length - 1, Math.max(0, Math.floor((0.30 + lum * 0.70) * DISC_RAMP.length)));
+                chCode = DISC_RAMP.charCodeAt(dIdx);
+              } else if (mat === MAT_PETAL) {
+                // Deep amber-gold petal base & under-layer -> bright sunny yellow tips
+                const u = w0 * tri.u0 + w1 * tri.u1 + w2 * tri.u2;
+                const v = w0 * tri.v0 + w1 * tri.v1 + w2 * tri.v2;
+                const petalLum = (baseLum * 0.72 + u * 0.38 - v * 0.22) * tri.shadeBias * depthShade;
+                lum = Math.max(0.10, Math.min(0.99, petalLum));
+                const rIdx = Math.min(RAMP_LEN - 1, Math.max(1, Math.floor(lum * RAMP_LEN)));
+                chCode = ASCII_RAMP.charCodeAt(rIdx);
+              } else if (mat === MAT_LEAF) {
+                const v = w0 * tri.v0 + w1 * tri.v1 + w2 * tri.v2;
+                lum = Math.max(0.12, Math.min(0.99, (baseLum * 0.88 + (1.0 - v) * 0.14) * depthShade));
+                const rIdx = Math.min(RAMP_LEN - 1, Math.max(1, Math.floor(lum * RAMP_LEN)));
+                chCode = ASCII_RAMP.charCodeAt(rIdx);
+              } else {
+                lum = Math.max(0.14, Math.min(0.99, baseLum * depthShade));
+                const rIdx = Math.min(RAMP_LEN - 1, Math.max(1, Math.floor(lum * RAMP_LEN)));
+                chCode = ASCII_RAMP.charCodeAt(rIdx);
+              }
+
+              charBuf[idx] = chCode;
+              const cStep = Math.min(palSize - 1, Math.max(0, Math.floor(lum * palSize)));
+              colorBuf[idx] = palOffset + cStep;
+            }
+          }
+        }
+
+        // 3. Paint ASCII grid onto pure black canvas (batched by color change)
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, stageW, stageH);
+
+        let lastColorIdx = -1;
+        for (let py = 0; py < rows; py++) {
+          const rowOffset = py * cols;
+          const drawY = offsetY + py * charH;
+
+          for (let px = 0; px < cols; px++) {
+            const idx = rowOffset + px;
+            const chCode = charBuf[idx];
+            if (chCode === 0) continue;
+
+            const cIdx = colorBuf[idx];
+            if (cIdx !== lastColorIdx) {
+              ctx.fillStyle = FLAT_COLORS[cIdx];
+              lastColorIdx = cIdx;
+            }
+            ctx.fillText(String.fromCharCode(chCode), offsetX + px * charW, drawY);
+          }
+        }
+      }
+
+      /* ========================================================================
+         5. Mouse & Touch Drag Interaction (PC, Android, iPhone, Tablet, iPad)
+         ======================================================================== */
+      function onDragStart(x, y) {
+        isDragging = true;
+        lastPtrX = x;
+        lastPtrY = y;
+        velY = 0;
+      }
+
+      function onDragMove(x, y) {
+        if (!isDragging) return;
+        const dx = x - lastPtrX;
+        const dy = y - lastPtrY;
+        lastPtrX = x;
+        lastPtrY = y;
+
+        rotY += dx * 0.01;
+        velY = dx * 0.08;
+        rotX = Math.max(-0.55, Math.min(0.65, rotX + dy * 0.006));
+      }
+
+      function onDragEnd() {
+        isDragging = false;
+      }
+
+      stageEl.addEventListener('mousedown', (e) => onDragStart(e.clientX, e.clientY));
+      window.addEventListener('mousemove', (e) => onDragMove(e.clientX, e.clientY));
+      window.addEventListener('mouseup', onDragEnd);
+
+      stageEl.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          onDragStart(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      stageEl.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+          onDragMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchend', onDragEnd);
+      window.addEventListener('touchcancel', onDragEnd);
+
+      /* ========================================================================
+         6. Initialization on Window Load
+         ======================================================================== */
+      function init() {
+        try {
+          buildBouquetGeometry();
+          const vCount = vertices.length / 3;
+          projX = new Float32Array(vCount);
+          projY = new Float32Array(vCount);
+          projZ = new Float32Array(vCount);
+
+          resizeCanvas();
+          window.addEventListener('resize', resizeCanvas);
+          window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 120);
+          });
+
+          requestAnimationFrame(renderFrame);
+        } catch (err) {
+          console.error('Errore avvio bouquet ASCII:', err);
+        }
+      }
+
+      window.onload = init;
+    })();
+  </script>
+</body>
+</html>
